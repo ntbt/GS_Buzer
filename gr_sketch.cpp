@@ -1,65 +1,69 @@
+/*
+* 圧電素子を使って簡易演奏するサンプル
+* ntbt
+* 参考：GR－SAKURAのTone利用サンプルを改良した
+*/
+
 #include <rxduino.h>
- 
- 
-// 基板上のピンの番号に名前をつけます
-// 以後、プログラム上では button1 と書けば、0番のピンを指していることになります
- 
-#define button0 30
-#define button1 31
+
+#define button0 30 //再生
+#define button1 31 //停止
 #define button2 32
 #define button3 33
 #define button4 35
-#define spaeker 34
+#define spaeker 34 //圧電素子の接続先
  
-int  buttons[5] = {button0 ,button1,button2,button3,button4};
-#define no 0
-#define do0 440
-#define dos0 466
-#define re0 494
-#define res0 523
-#define mi0 554
-#define fa0 587
-#define fas0 622
-#define so0 659
-#define sos0 699
-#define ra0 740
-#define ras0 784
-#define si0 830
-#define do1 880
-#define dos1 923
-#define re1 988
-#define res1 1046
-#define mi1 1109
-#define fa1 1174
-#define fas1 1244
-#define so1 1318
-#define sos1 1318
-#define ra1 1480
-#define ras1 1568
-#define si1 1661
+int  buttons[5] = {button0 ,button1,button2,button3,button4};//スイッチの数
+//音の種類
+#define no 0 //音を鳴らさない場合
+#define do0 440 //ド
+#define dos0 466 //ド#
+#define re0 494 //レ
+#define res0 523 //レ#
+#define mi0 554 //ミ
+#define fa0 587 //ファ
+#define fas0 622 //ファ#
+#define so0 659 //ソ
+#define sos0 699 //ソ#
+#define ra0 740 //ラ
+#define ras0 784 //ラ#
+#define si0 830 //シ
+#define do1 880 //ド
+#define dos1 923 //ド#
+#define re1 988 //レ
+#define res1 1046 //レ#
+#define mi1 1109 //ミ
+#define fa1 1174 //ファ
+#define fas1 1244 //ファ#
+#define so1 1318 //ソ
+#define sos1 1318 //ソ#
+#define ra1 1480 //ラ
+#define ras1 1568 //ラ#
+#define si1 1661 //シ
 
+//音符クラス?楽譜に刻まれる記号単位で記述
 class onp{
-public:
-    int oto;
-    int time;
+public: //面倒なのでPublicとする
+    int oto; //音の種類[周波数]：上記のDefineを利用
+    int time; //音を継続してならす時間[ms]：下記のTime系のDefineを利用
     //
     onp(int o,int t)
-    {
+    {//コンストラクタで中身を定義する
         this->oto = o;
         this->time = t;
     }
 };
 
-#define time_1 2000
-#define time_2 1000
-#define time_4 500
-#define time_8 250
-#define time_16 125
-#define time_32 63
-#define time_64 31
+#define time_1 2000 //全音符
+#define time_2 1000 //2分音符
+#define time_4 500 //四分音符
+#define time_8 250 //八分音符
+#define time_16 125 //十六分音符
+#define time_32 63 //三十二分音符
+#define time_64 31 //六十四分音符?予備
 
-#define MAX_G 57
-onp gakuhu[MAX_G ] = 
+#define MAX_G 57 //音符の最大数
+onp gakuhu[MAX_G ] = //楽譜の内容配列
     {
     onp(no,time_4 ),onp(re0,time_4 ),onp(so0,time_4 ),onp(re1,time_4 ),onp(no,time_32 ),//re,so,res,do-
     onp(re1,time_2 ),onp(do1,time_2 ),onp(ras0,time_8 ),onp(ra0,time_8 ),onp(re0,time_8 ),//si,ra,re,fa,
@@ -77,100 +81,71 @@ onp gakuhu[MAX_G ] =
     };
 
 
-int play = 0;
- int time_id = 0;
- 
- void debug(int c)
- {
-     digitalWrite(PIN_LED0, c &1);
-     digitalWrite(PIN_LED1, c &2);
-     digitalWrite(PIN_LED2, c &4);
-     digitalWrite(PIN_LED3, c &8);
- };
+int play = 0; //実行モード変数＠再生＠デフォルト＝停止
+int time_id = 0; //楽譜の再生ID＠時間
+
+void debug(int c) //debug関数＠GR－SAKURAのLED4つを利用
+{
+	digitalWrite(PIN_LED0, c &1);
+	digitalWrite(PIN_LED1, c &2);
+	digitalWrite(PIN_LED2, c &4);
+	digitalWrite(PIN_LED3, c &8);
+};
  
 // setup() は最初に一回だけ実行されるところです
 // ピンの初期化などに使います
  
 void setup()
 {
- 
-     // ボタンが押されたことを感知するためにピンを入力モードにします
-     // PULLUP とすることで常に入力がHIGH（電気が流れている状態）になります
- 
-     for(int i=0;i<5;i++)
-     {
-         pinMode( buttons[i], INPUT_PULLUP );
-    }
-     pinMode(PIN_LED0,OUTPUT);
+	// PULLUP とすることで常に入力がHIGH（電気が流れている状態）になります
+	for(int i=0;i<5;i++)
+	{
+		pinMode( buttons[i], INPUT_PULLUP );
+	}
+	//デフォルトLEDの出力設定
+    pinMode(PIN_LED0,OUTPUT);
     pinMode(PIN_LED1,OUTPUT);
     pinMode(PIN_LED2,OUTPUT);
     pinMode(PIN_LED3,OUTPUT);
  
-     // スピーカーは出力になりますので OUTPUT とします
- 
-     pinMode( spaeker, OUTPUT);
+	// スピーカーは出力になりますので OUTPUT とします
+	pinMode( spaeker, OUTPUT);
 }
- 
- 
+
+
 // loop() は繰り返し実行されるところです
 // ここにプログラムの本体を記述します
  
 void loop()
 {
- 
-     // ボタンが押されるとGNDに繋がります
-     // そのため、ピンに流れていた電気がGNDに流れるのでピンはLOW（電気が流れていない状態）になります。
-     // ここではそれぞれのピンの状態を調べて、LOWだったらtone()を使ってスピーカーから音を出す処理をしています。
- if( digitalRead( buttons[0]) == LOW )
-     play = 1;
-if( digitalRead( buttons[4]) == LOW )
- {
-     play = 0;
-     noTone(spaeker);
-}
-     
- if(play == 1)
- {
-      if(gakuhu[time_id].oto == no)
-          noTone(spaeker);
-      else
-          tone(spaeker, gakuhu[time_id].oto );
-      debug(time_id);
-      delay(gakuhu[time_id].time );
-      //
-      time_id ++;
-      if(time_id >= MAX_G)
-          time_id =0;
-}
-     /*if( digitalRead( buttons[0]) == LOW &&  digitalRead( buttons[1]) == LOW ) {
-          tone( spaeker, 262 ) ;  // ド
-          tone( spaeker, 294 ) ;  // レ
-     } else if( digitalRead( buttons[0]) == LOW &&  digitalRead( buttons[3]) == LOW ) {
-          tone( spaeker, 277 ) ;  // %ド
-     } else if( digitalRead( buttons[0]) == LOW ) {
-          tone( spaeker, 262 ) ;  // ド
-     } else if( digitalRead( buttons[1]) == LOW ) {
-          tone( spaeker, 294 ) ;  // レ
-     } else if( digitalRead( buttons[2]) == LOW ) {
-          tone( spaeker, 330 ) ;  // ミ
-     } else if( digitalRead( buttons[3]) == LOW ) {
-          tone( spaeker, 349 ) ;  // ファ
-     } else if( digitalRead( buttons[4]) == LOW ) {
-          tone( spaeker, 392 ) ;  // ソ
-     } else {
-          noTone( spaeker ) ;
-     }*/
- /*
- ド：２６１．６３Hz
-レ：２９３．６６Hz
-ミ：３２９．６３Hz
-ファ：３４９．２３Hz
-ソ：３９２．００Hz
-ラ：４４０．００Hz
-シ：４９３．８８Hz（小数点第３位四捨五入）
- */
+	if( digitalRead( buttons[0]) == LOW )
+	{//再生
+		play = 1;
+	}
+	if( digitalRead( buttons[1]) == LOW )
+	{//停止
+		play = 0;
+		noTone(spaeker);//スピーカを鳴らさない為
+	}
+	//演奏
+	if(play == 1)
+	{//再生時
+		if(gakuhu[time_id].oto == no)
+		{//休符
+			noTone(spaeker);
+		}
+		else
+		{//通常
+			tone(spaeker, gakuhu[time_id].oto );
+		}
+		debug(time_id);//debugモード
+		delay(gakuhu[time_id].time );//指定時間分だけDelayを掛ける
+		//
+		time_id ++;//楽譜を進める
+		if(time_id >= MAX_G)
+			time_id =0;//最大ならば初期に戻す
+	}
      // このまま loop() の最初に戻りますが、delay(10)とすることで10ミリ秒処理を止めています。
      // 一見不要に見えますが、これが無いと音がきれいに鳴りません。
- 
      delay(10) ;
 }
